@@ -1,0 +1,15 @@
+[package]
+name = "bc4py_hash"
+version = "0.1.0"
+authors = ["namuyan <thhjuu@yahoo.co.jp>"]
+edition = "2018"
+build = "build.rs"
+
+[dependencies]
+libc = "0.2"
+
+[build-dependencies]
+cc = "1.0"
+
+[dev-dependencies]
+hex = "0.4"
