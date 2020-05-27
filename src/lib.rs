@@ -1,3 +1,4 @@
+#![feature(link_args)]
 use std::cmp::min;
 use std::ffi::CString;
 use std::os::raw::c_char;
@@ -24,7 +25,7 @@ pub fn get_yespower_hash(input: Vec<u8>) -> Vec<u8> {
     unsafe {
         let input_str = CString::from_vec_unchecked(input);
         // note: output buffer require 32 bytes
-        let buffer = [0u8; 32].to_vec();
+        let buffer = BUF.to_vec();
         let ptr = CString::from_vec_unchecked(buffer).into_raw();
         yespower_hash(input_str.as_ptr(), ptr);
         // note: prone only first 32 bytes
@@ -53,7 +54,17 @@ pub fn get_x16s_hash(input: Vec<u8>) -> Vec<u8> {
     }
 }
 
+#[cfg(windows)]
 #[link(name = "x11", kind = "static")]
+extern "C" {
+    fn x11_hash(input: *const c_char, output: *mut c_char);
+}
+
+/// avoid multiple definition error by GCC linker (sha3)
+#[cfg(not(windows))]
+#[link(name = "x11", kind = "static")]
+#[allow(unused_attributes)]
+#[link_args = "-z muldefs"]
 extern "C" {
     fn x11_hash(input: *const c_char, output: *mut c_char);
 }
@@ -66,7 +77,7 @@ pub fn get_x11_hash(input: Vec<u8>) -> Vec<u8> {
     unsafe {
         let input_str = CString::from_vec_unchecked(input);
         // note: output buffer require 32 bytes
-        let buffer = [0u8; 32].to_vec();
+        let buffer = BUF.to_vec();
         let ptr = CString::from_vec_unchecked(buffer).into_raw();
         x11_hash(input_str.as_ptr(), ptr);
         // note: prone only first 32 bytes
