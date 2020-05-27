@@ -1,7 +1,7 @@
 #![feature(link_args)]
 use std::cmp::min;
 use std::ffi::CString;
-use std::os::raw::c_char;
+use std::os::raw::{c_char, c_uint};
 
 static BUF: [u8; 32] = [0u8; 32];
 
@@ -14,10 +14,26 @@ fn fix_output_len(data: &[u8]) -> Vec<u8> {
 
 #[link(name = "yespower", kind = "static")]
 extern "C" {
-    fn yespower_hash(input: *const c_char, output: *mut c_char);
+    fn yespower_hash(input: *const c_char, output: *mut c_char, version: c_uint);
 }
 
-/// yespower hash
+/// yescrypt(yespower0.5) hash
+///
+/// input 80 bytes vec and output 32 bytes vec
+pub fn get_yescrypt_hash(input: Vec<u8>) -> Vec<u8> {
+    assert_eq!(input.len(), 80);
+    unsafe {
+        let input_str = CString::from_vec_unchecked(input);
+        // note: output buffer require 32 bytes
+        let buffer = BUF.to_vec();
+        let ptr = CString::from_vec_unchecked(buffer).into_raw();
+        yespower_hash(input_str.as_ptr(), ptr, 1u32);
+        // note: prone only first 32 bytes
+        fix_output_len(CString::from_raw(ptr).as_bytes())
+    }
+}
+
+/// yespower0.9 hash
 ///
 /// input 80 bytes vec and output 32 bytes vec
 pub fn get_yespower_hash(input: Vec<u8>) -> Vec<u8> {
@@ -27,7 +43,7 @@ pub fn get_yespower_hash(input: Vec<u8>) -> Vec<u8> {
         // note: output buffer require 32 bytes
         let buffer = BUF.to_vec();
         let ptr = CString::from_vec_unchecked(buffer).into_raw();
-        yespower_hash(input_str.as_ptr(), ptr);
+        yespower_hash(input_str.as_ptr(), ptr, 2u32);
         // note: prone only first 32 bytes
         fix_output_len(CString::from_raw(ptr).as_bytes())
     }
@@ -88,6 +104,15 @@ pub fn get_x11_hash(input: Vec<u8>) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use crate::*;
+
+    #[test]
+    fn yescrypt() {
+        // https://bitzeny-blockbook.ilmango.work/api/block/10000
+        let input = hex::decode("0200000094510dea6171082148331425e9938ca67de1e95c5053e199b2243b0d4b0000001edca31eaba9088dabbe2c48c341b21fe3e897ef660d2f40146cffe7b96dc60ffb1d6b54b1a15b1dc0000e5a").unwrap();
+        let output = "b25a34bb0ecea05e0dbe180231216a1a14ca262bf7d3211458e231863f000000".to_owned();
+        let calc = get_yescrypt_hash(input);
+        assert_eq!(hex::encode(calc), output);
+    }
 
     #[test]
     fn yespower() {

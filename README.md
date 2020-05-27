@@ -1,6 +1,10 @@
 bc4py-hash
 ====
-bc4py crypto hash functions (Yespower0.9, x16s and x11)
+bc4py crypto hash functions
+* Yescrypt (Yespower0.5)
+* Yespower0.9
+* x16s
+* x11
 
 requirement
 ----
