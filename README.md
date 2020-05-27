@@ -7,6 +7,12 @@ requirement
 * MSVC on windows
 * GCC on linux
 
+test
+----
+```commandline
+cargo test
+```
+
 install
 ----
 ```commandline
