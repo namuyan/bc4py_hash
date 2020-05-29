@@ -5,6 +5,7 @@ bc4py crypto hash functions
 * Yespower0.9
 * x16s
 * x11
+* poc (proof of capacity)
 
 requirement
 ----

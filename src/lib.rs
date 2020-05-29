@@ -1,4 +1,12 @@
 #![feature(link_args)]
+extern crate num_cpus;
+mod plotfile;
+mod poc;
+mod seekfile;
+
+pub use plotfile::*;
+pub use poc::*;
+pub use seekfile::*;
 use std::cmp::min;
 use std::ffi::CString;
 use std::os::raw::{c_char, c_uint};
@@ -136,5 +144,17 @@ mod tests {
         let output = "1c5368101c34ee909c519a9de4ffc798ae2275209dee2db5f54cc2ab01000000".to_owned();
         let calc = get_x11_hash(input);
         assert_eq!(hex::encode(calc), output);
+    }
+
+    #[test]
+    fn poc() {
+        // height 100000
+        let work = "d8fc394861e265ff9fa43fc9de408b6a26d631b993ba73b4048bd885b0090000";
+        let addr = hex::decode("00de6e40c12db0920348ed0ebb136e3a926bad4a3a").unwrap();
+        let nonce = 685;
+        let time = 1579609665 - 1557883103;
+        let previous_hash = "df98f659f3f31cbf3494b96e44697729e3d018b6308a6de8fefa5fd4b378d025";
+        let work_hash = get_poc_hash(&addr, nonce, time, &hex::decode(previous_hash).unwrap());
+        assert_eq!(hex::encode(work_hash), work);
     }
 }
