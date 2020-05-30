@@ -52,19 +52,19 @@ impl Semaphore {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum PlotFlag {
     Unoptimized,
     Optimized,
 }
 
-#[derive(PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct PlotFile {
-    flag: PlotFlag,
-    path: PathBuf,
-    addr: Address,
-    start: usize,
-    end: usize,
+    pub flag: PlotFlag,
+    pub path: PathBuf,
+    pub addr: Address,
+    pub start: usize,
+    pub end: usize,
 }
 
 impl fmt::Debug for PlotFile {
@@ -154,7 +154,9 @@ pub fn plot_unoptimized_file(addr: &Address, start: usize, end: usize, tmp_dir: 
     let semaphore = Semaphore::new();
     let task_num = 1000;
     let step_size = (end - start) / task_num + 1;
-    let (tx, rx) = mpsc::channel();
+
+    // note: block channel when disk io is busy
+    let (tx, rx) = mpsc::sync_channel(4);
 
     // throw tasks
     let mut start_pos = start.clone();
