@@ -2,9 +2,13 @@ extern crate cc;
 
 /// build by GNU or MSVC
 fn main() {
-    yespower_build();
-    x16s_build();
-    x11_build();
+    if cfg!(feature = "hashs") {
+        yespower_build();
+        x16s_build();
+        x11_build();
+    } else {
+        eprintln!("skip compile");
+    }
 }
 
 /// yespower crypto hash library build
