@@ -11,6 +11,47 @@ use std::time::Duration;
 
 type Address = [u8; 21];
 
+/// working thread limit like semaphore
+#[derive(Clone)]
+struct Semaphore {
+    count: Arc<Mutex<usize>>,
+    locked: bool,
+}
+
+impl Semaphore {
+    /// default limitation is cpu number
+    fn new() -> Self {
+        let cpu_count = num_cpus::get();
+        Semaphore {
+            count: Arc::new(Mutex::new(cpu_count)),
+            locked: false,
+        }
+    }
+
+    // acquire lock and decrement
+    fn acquire(&mut self) {
+        assert!(!self.locked);
+        loop {
+            {
+                let mut count = self.count.lock().unwrap();
+                if 0 < *count {
+                    *count -= 1;
+                    self.locked = true;
+                    return;
+                }
+            }
+            // wait for another thread release
+            thread::sleep(Duration::from_secs(1));
+        }
+    }
+
+    // release lock and increment
+    fn release(self) {
+        assert!(self.locked);
+        *self.count.lock().unwrap() += 1;
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum PlotFlag {
     Unoptimized,
@@ -98,7 +139,7 @@ pub fn plot_unoptimized_file(addr: &Address, start: usize, end: usize, tmp_dir: 
     let mut fs = BufWriter::new(File::create(&tmp).unwrap());
 
     // generate hash
-    let semaphore = Arc::new(Mutex::new(num_cpus::get()));
+    let semaphore = Semaphore::new();
     let task_num = 1000;
     let step_size = (end - start) / task_num + 1;
     let (tx, rx) = mpsc::channel();
@@ -109,19 +150,10 @@ pub fn plot_unoptimized_file(addr: &Address, start: usize, end: usize, tmp_dir: 
         let end_pos = min(end, start_pos + step_size);
         let addr = addr.clone();
         let tx = tx.clone();
-        let semaphore = semaphore.clone();
+        let mut semaphore = semaphore.clone();
         thread::spawn(move || {
-            // wait for semaphore
-            loop {
-                {
-                    let mut limit = semaphore.lock().unwrap();
-                    if 0 < *limit {
-                        *limit -= 1;
-                        break;
-                    }
-                }
-                thread::sleep(Duration::from_secs(1));
-            }
+            // wait for lock get
+            semaphore.acquire();
 
             // generate hash
             let mut cache = get_generator_cache();
@@ -135,8 +167,8 @@ pub fn plot_unoptimized_file(addr: &Address, start: usize, end: usize, tmp_dir: 
             // send result
             tx.send((start_pos, end_pos, result)).unwrap();
 
-            // release semaphore
-            *semaphore.lock().unwrap() += 1;
+            // release lock
+            semaphore.release();
         });
         // throw next task
         start_pos = end_pos;
