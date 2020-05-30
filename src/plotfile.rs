@@ -119,6 +119,18 @@ impl PlotFile {
                 None => continue,
             }
         }
+        // ordered by start index
+        result.sort_by(|a, b| {
+            if a.flag == b.flag {
+                a.start.cmp(&b.start)
+            } else {
+                match (&a.flag, &b.flag) {
+                    (PlotFlag::Unoptimized, PlotFlag::Optimized) => a.start.cmp(&0usize),
+                    (PlotFlag::Optimized, PlotFlag::Unoptimized) => b.start.cmp(&0usize),
+                    (a, b) => panic!(format!("unexpected PlotFLag compare? {:?} with {:?}", a, b)),
+                }
+            }
+        });
         result
     }
 }
@@ -313,6 +325,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn plotting() {
         let mut addr = [0u8; 21];
         let tmp = tempdir().unwrap();

@@ -18,6 +18,11 @@ test
 cargo test
 ```
 
+heavy test *plot_file* by
+```commandline
+cargo test --release -- --ignored
+```
+
 install
 ----
 ```commandline
