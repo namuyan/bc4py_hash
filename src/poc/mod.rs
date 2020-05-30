@@ -1,3 +1,6 @@
+pub mod plotfile;
+pub mod seekfile;
+
 use bigint::U256;
 use blake2b_simd::blake2b;
 use std::cmp::min;
@@ -100,4 +103,84 @@ fn get_scope_hash(addr: &[u8], nonce: u32, previous_hash: &[u8]) -> Vec<u8> {
     let scope = get_scope_index(previous_hash);
     let scope_hash = &output[scope * 32..scope * 32 + 32];
     scope_hash.to_vec()
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::plotfile::*;
+    use crate::seekfile::*;
+    use crate::*;
+    use tempfile::tempdir;
+
+    fn s2h(s: &str) -> Vec<u8> {
+        hex::decode(s).unwrap()
+    }
+
+    #[test]
+    #[ignore]
+    fn plotting() {
+        let mut addr = [0u8; 21];
+        let tmp = tempdir().unwrap();
+
+        // generate plot file
+        addr.clone_from_slice(&s2h("00df64f24d74ea98b3a6734465ea9980ae9cdb2280"));
+        let start = 0;
+        let end = 40;
+        let unoptimized0 = plot_unoptimized_file(&addr, start, 15, tmp.path());
+        let unoptimized1 = plot_unoptimized_file(&addr, 15, end, tmp.path());
+
+        // check plot files restore
+        let files = vec![unoptimized0, unoptimized1];
+        let restore = PlotFile::restore_from_dir(tmp.path());
+        assert_eq!(restore, files);
+
+        // convert to optimized
+        let optimized = convert_to_optimized_file(files, tmp.path());
+
+        // calc from seek_file() by single
+        let previous_hash = s2h("e34140a2ec83f237657427a98c5ab8516f75af8bc44e4c59e79e9df997df37e0");
+        let target = s2h("000000000000000000000000000000000000000000000000000000ffffff0000");
+        let time = 1836;
+        let (nonce, work0) = seek_file(
+            &optimized.path,
+            start,
+            end,
+            &previous_hash,
+            &target,
+            time,
+            false,
+        )
+        .unwrap();
+        assert_eq!(nonce, 32);
+
+        // calc from seek_file() by multi
+        let (nonce_multi, work_multi) = seek_file(
+            &optimized.path,
+            start,
+            end,
+            &previous_hash,
+            &target,
+            time,
+            true,
+        )
+        .unwrap();
+        assert_eq!(nonce_multi, 32);
+        assert_eq!(hex::encode(work_multi), hex::encode(&work0));
+
+        // calc from get_poc_hash()
+        let work1 = get_poc_hash(&addr, nonce, time, &previous_hash);
+        assert_eq!(hex::encode(&work0), hex::encode(&work1));
+    }
+
+    #[test]
+    fn poc() {
+        // height 100000
+        let work = "d8fc394861e265ff9fa43fc9de408b6a26d631b993ba73b4048bd885b0090000";
+        let addr = s2h("00de6e40c12db0920348ed0ebb136e3a926bad4a3a");
+        let nonce = 685;
+        let time = 1579609665 - 1557883103;
+        let previous_hash = s2h("df98f659f3f31cbf3494b96e44697729e3d018b6308a6de8fefa5fd4b378d025");
+        let work_hash = get_poc_hash(&addr, nonce, time, &previous_hash);
+        assert_eq!(hex::encode(work_hash), work);
+    }
 }

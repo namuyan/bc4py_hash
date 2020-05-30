@@ -12,21 +12,32 @@ requirement
 * MSVC on windows
 * GCC on linux
 
+usage
+----
+There are three features.
+
+| name | note |
+| ---- | ---- |
+| hashs | enables yespower, x16s and x11 hash |
+| poc  | enables poc hash functions |
+| progress-bar | print poc work progress |
+
+specify by features like this.
+```
+[dependencies]
+bc4py_hash = {version = "0.1", features= ["hashs", "poc"]}
+```
+
 test
 ----
+check all test except heavy test
 ```commandline
-cargo test
+cargo test --features hashs --features poc
 ```
 
-heavy test *plot_file* by
+heavy test of *plot_file* by
 ```commandline
-cargo test --release -- --ignored
-```
-
-install
-----
-```commandline
-cargo install bc4py_hash
+cargo test --features poc --release -- --ignored
 ```
 
 sources

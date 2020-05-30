@@ -3,11 +3,11 @@ use regex::Regex;
 use std::cmp::min;
 use std::fmt;
 use std::fs::{read_dir, rename, File};
-use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
+use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write, stdout};
 use std::path::{Path, PathBuf};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 type Address = [u8; 21];
 
@@ -190,6 +190,8 @@ pub fn plot_unoptimized_file(addr: &Address, start: usize, end: usize, tmp_dir: 
 
     // wait for all thread finish
     let offset = start.clone();
+    let mut step = 0usize;
+    let now = Instant::now();
     for (start_pos, end_pos, result) in rx.iter().take(task_num) {
         let first_pos = LOOP_COUNT * HASH_LEN * (start_pos - offset);
         fs.seek(SeekFrom::Start(first_pos as u64)).unwrap();
@@ -198,6 +200,13 @@ pub fn plot_unoptimized_file(addr: &Address, start: usize, end: usize, tmp_dir: 
         let calc_end_pos = fs.seek(SeekFrom::Current(0)).unwrap();
         let estimate_pos = LOOP_COUNT * HASH_LEN * (end_pos - offset);
         assert_eq!(calc_end_pos, estimate_pos as u64);
+
+        // show progress
+        step += 1;
+        if cfg!(feature = "progress-bar") {
+            print!("{} of {} finish {}m passed\r", step, task_num, now.elapsed().as_secs() / 60);
+            stdout().flush().unwrap();
+        }
     }
 
     // release file objext
@@ -255,9 +264,11 @@ pub fn convert_to_optimized_file(files: Vec<PlotFile>, out_dir: &Path) -> PlotFi
     let mut writer = BufWriter::new(File::create(&tmp).unwrap());
 
     // read and join
+    let now = Instant::now();
     let mut buffer = [0u8; 32];
     let skip_size = (LOOP_COUNT * HASH_LEN - 32) as i64;
-    for step in 0..(LOOP_COUNT * HASH_LEN / 32) as u64 {
+    let task_num = LOOP_COUNT * HASH_LEN / 32;
+    for step in 0..task_num as u64 {
         let mut count = 0usize;
         for (fs, plot) in reader.iter_mut().zip(files.iter()) {
             // set first position to read
@@ -288,8 +299,15 @@ pub fn convert_to_optimized_file(files: Vec<PlotFile>, out_dir: &Path) -> PlotFi
                 }
             }
         }
+
         // check nonce count
         assert_eq!(count, end - start);
+
+        // show progress
+        if cfg!(feature = "progress-bar") {
+            print!("{} of {} finish {}m passed\r", step, task_num, now.elapsed().as_secs() / 60);
+            stdout().flush().unwrap();
+        }
     }
 
     // release file objects
@@ -313,72 +331,5 @@ pub fn convert_to_optimized_file(files: Vec<PlotFile>, out_dir: &Path) -> PlotFi
         addr,
         start,
         end,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::*;
-    use tempfile::tempdir;
-    // use std::env::temp_dir;
-
-    fn s2h(s: &str) -> Vec<u8> {
-        hex::decode(s).unwrap()
-    }
-
-    #[test]
-    #[ignore]
-    fn plotting() {
-        let mut addr = [0u8; 21];
-        let tmp = tempdir().unwrap();
-
-        // generate plot file
-        addr.clone_from_slice(&s2h("00df64f24d74ea98b3a6734465ea9980ae9cdb2280"));
-        let start = 0;
-        let end = 40;
-        let unoptimized0 = plot_unoptimized_file(&addr, start, 15, tmp.path());
-        let unoptimized1 = plot_unoptimized_file(&addr, 15, end, tmp.path());
-
-        // check plot files restore
-        let files = vec![unoptimized0, unoptimized1];
-        let restore = PlotFile::restore_from_dir(tmp.path());
-        assert_eq!(restore, files);
-
-        // convert to optimized
-        let optimized = convert_to_optimized_file(files, tmp.path());
-
-        // calc from seek_file() by single
-        let previous_hash = s2h("e34140a2ec83f237657427a98c5ab8516f75af8bc44e4c59e79e9df997df37e0");
-        let target = s2h("000000000000000000000000000000000000000000000000000000ffffff0000");
-        let time = 1836;
-        let (nonce, work0) = seek_file(
-            &optimized.path,
-            start,
-            end,
-            &previous_hash,
-            &target,
-            time,
-            false,
-        )
-        .unwrap();
-        assert_eq!(nonce, 32);
-
-        // calc from seek_file() by multi
-        let (nonce_multi, work_multi) = seek_file(
-            &optimized.path,
-            start,
-            end,
-            &previous_hash,
-            &target,
-            time,
-            true,
-        )
-        .unwrap();
-        assert_eq!(nonce_multi, 32);
-        assert_eq!(hex::encode(work_multi), hex::encode(&work0));
-
-        // calc from get_poc_hash()
-        let work1 = get_poc_hash(&addr, nonce, time, &previous_hash);
-        assert_eq!(hex::encode(&work0), hex::encode(&work1));
     }
 }
