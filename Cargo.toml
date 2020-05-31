@@ -1,6 +1,6 @@
 [package]
 name = "bc4py_hash"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["namuyan <thhjuu@yahoo.co.jp>"]
 edition = "2018"
 license = "MIT"
