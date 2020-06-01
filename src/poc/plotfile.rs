@@ -3,7 +3,7 @@ use regex::Regex;
 use std::cmp::min;
 use std::fmt;
 use std::fs::{read_dir, rename, File};
-use std::io::{BufWriter, Read, Seek, SeekFrom, Write, stdout};
+use std::io::{stdout, BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
@@ -52,6 +52,7 @@ impl Semaphore {
     }
 }
 
+/// plot file status flag
 #[derive(Clone, Debug, PartialEq)]
 pub enum PlotFlag {
     Unoptimized,
@@ -203,11 +204,8 @@ pub fn plot_unoptimized_file(addr: &Address, start: usize, end: usize, tmp_dir: 
 
         // show progress
         step += 1;
-        if cfg!(feature = "progress-bar") && 0 < step {
-            let passed_sec = now.elapsed().as_secs();
-            let remain_sec = task_num as u64 / step * passed_sec;
-            print!(" {} of {} finish, {}m passed, {}m remains  \r", step, task_num, passed_sec / 60, remain_sec / 60);
-            stdout().flush().unwrap();
+        if cfg!(feature = "progress-bar") {
+            print_progress_bar(&now, step, task_num);
         }
     }
 
@@ -291,11 +289,11 @@ pub fn convert_to_optimized_file(files: Vec<PlotFile>, out_dir: &Path) -> PlotFi
                     Ok(0) => {
                         // full seeked and next file
                         break;
-                    },
+                    }
                     // unexpected errors
                     Ok(size) => {
                         panic!(format!("unexpected size({}bytes) reading {:?}", size, plot))
-                    },
+                    }
                     Err(err) => {
                         panic!(format!("error occurred on converting: {}", err.to_string()))
                     }
@@ -307,11 +305,8 @@ pub fn convert_to_optimized_file(files: Vec<PlotFile>, out_dir: &Path) -> PlotFi
         assert_eq!(count, end - start);
 
         // show progress
-        if cfg!(feature = "progress-bar") && 0 < step {
-            let passed = now.elapsed().as_secs();
-            let remain = task_num as u64 / step * passed;
-            print!(" {} of {} finish, {}m passed, {}m remains  \r", step, task_num, passed / 60, remain / 60);
-            stdout().flush().unwrap();
+        if cfg!(feature = "progress-bar") {
+            print_progress_bar(&now, step, task_num);
         }
     }
 
@@ -337,4 +332,23 @@ pub fn convert_to_optimized_file(files: Vec<PlotFile>, out_dir: &Path) -> PlotFi
         start,
         end,
     }
+}
+
+/// print to stdout progress bar (option)
+fn print_progress_bar(now: &Instant, step: u64, task_num: usize) {
+    let passed = now.elapsed().as_secs();
+    let total = if 0 < step {
+        task_num as u64 * passed / step
+    } else {
+        task_num as u64 * passed
+    };
+    let remain = total.checked_sub(passed).unwrap_or(0);
+    print!(
+        " {} of {} finish, {}m passed, {}m remains  \r",
+        step,
+        task_num,
+        passed / 60,
+        remain / 60
+    );
+    stdout().flush().unwrap();
 }

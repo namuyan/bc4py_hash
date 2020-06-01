@@ -9,11 +9,15 @@ repository = "https://github.com/namuyan/bc4py_hash"
 readme = "README.md"
 build = "build.rs"
 
+# do not include the default features
+# optionally cherry-pick individual features
+default-features = false
+
 [lib]
 crate-type = ["rlib"]
 
 [features]
-default = []
+default = ["hashs", "poc", "progress-bar"]
 hashs = ["libc"]
 poc = ["regex", "etcommon-bigint", "blake2b_simd"]
 progress-bar = []
